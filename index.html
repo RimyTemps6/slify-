@@ -8,16 +8,11 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<section id="login">
-  <h1>Slify</h1>
-  <p>Seus lançamentos, favoritos e histórico num só lugar.</p>
-  <button id="btnLogin" class="primary">Entrar com Google</button>
-</section>
 
-<div id="app" hidden>
+<div id="app">
   <header>
     <h1>Slify</h1>
-    <button id="btnOut" class="ghost">Sair</button>
+    <button id="btnKey" class="ghost">Chave da API</button>
   </header>
   <nav>
     <button data-tab="new" class="on">Novidades</button>
@@ -36,6 +31,12 @@
     <input id="pBar" type="range" min="0" max="1000" value="0" aria-label="Progresso">
   </footer>
 </div>
+<dialog id="dlg">
+  <h2>Chave da API do YouTube</h2>
+  <p>Com a chave, o Slify toca a música inteira. Sem ela, toca prévias de 30 segundos. A chave fica salva só neste aparelho.</p>
+  <input id="keyIn" type="password" placeholder="Cole a chave aqui" autocomplete="off">
+  <div class="acts"><button id="keySave" class="primary">Salvar</button><button id="keyDel" class="ghost">Remover</button><button id="keyClose" class="ghost">Agora não</button></div>
+</dialog>
 <div id="yt"></div>
 <script type="module" src="app.js"></script>
 </body>

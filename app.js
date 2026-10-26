@@ -1,5 +1,4 @@
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {getFirestore,collection,doc,setDoc,deleteDoc,addDoc,getDocs,query,orderBy,limit,writeBatch} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 /* ===== CONFIGURAÇÃO ===== */
@@ -11,16 +10,16 @@ const firebaseConfig = {
   messagingSenderId: "206220562373",
   appId: "1:206220562373:web:48ae302e1fee142a3685ac"
 };
-// OPCIONAL: chave da YouTube Data API v3. Vazia = toca prévias de 30s. Preenchida = toca a música inteira.
-const YT_KEY = "";
+// A chave do YouTube é adicionada pelo botão "Chave da API" dentro do site (fica salva no aparelho).
+let YT_KEY = ""; try { YT_KEY = localStorage.getItem("slify_yt_key") || ""; } catch (e) {}
 /* ======================== */
 
-const app = initializeApp(firebaseConfig), auth = getAuth(app), db = getFirestore(app);
+const app = initializeApp(firebaseConfig), db = getFirestore(app);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let user, tab = "new", queue = [], idx = -1, favs = new Set(), mode = "audio", yt, ytReady = false, ytState = -1;
+let tab = "new", queue = [], idx = -1, favs = new Set(), mode = "audio", yt, ytReady = false, ytState = -1;
 const audio = new Audio();
-const col = n => collection(db, "users", user.uid, n);
+const col = n => collection(db, "slify", "me", n);
 
 function jsonp(url) {
   return new Promise((ok, fail) => {
@@ -33,19 +32,6 @@ function jsonp(url) {
   });
 }
 
-/* ----- login ----- */
-$("#btnLogin").onclick = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(e => alert("Não foi possível entrar: " + e.code));
-$("#btnOut").onclick = () => { stop(); signOut(auth); };
-onAuthStateChanged(auth, async u => {
-  user = u;
-  $("#login").hidden = !!u; $("#app").hidden = !u;
-  if (!u) return;
-  $("#view").innerHTML = '<p class="empty">Buscando lançamentos…</p>';
-  try { (await getDocs(col("favorites"))).forEach(d => favs.add(d.id)); } catch (e) {}
-  await syncReleases();
-  go("new");
-});
-
 /* ----- lançamentos: busca e salva no Firestore automaticamente ----- */
 async function syncReleases() {
   let list = [];
@@ -55,7 +41,7 @@ async function syncReleases() {
   }
   if (!list.length) return;
   const today = new Date().toISOString().slice(0, 10), b = writeBatch(db);
-  list.forEach(a => b.set(doc(db, "users", user.uid, "albums", String(a.id)), {
+  list.forEach(a => b.set(doc(db, "slify", "me", "albums", String(a.id)), {
     id: String(a.id), title: a.title || "", artist: a.artist?.name || "",
     cover: a.cover_big || a.cover_medium || "", date: a.release_date || today
   }, {merge: true}));
@@ -143,7 +129,7 @@ $("#pBar").oninput = e => {
 };
 $("#pFav").onclick = async () => {
   const t = queue[idx]; if (!t) return;
-  const ref = doc(db, "users", user.uid, "favorites", t.id);
+  const ref = doc(db, "slify", "me", "favorites", t.id);
   if (favs.has(t.id)) { favs.delete(t.id); await deleteDoc(ref); }
   else { favs.add(t.id); await setDoc(ref, {id: t.id, title: t.title, artist: t.artist, cover: t.cover, preview: t.preview, album: t.album || "", at: Date.now()}); }
   ui(t); if (tab === "favs") go("favs");
@@ -160,3 +146,20 @@ if (YT_KEY) {
   const s = document.createElement("script"); s.src = "https://www.youtube.com/iframe_api"; document.head.appendChild(s);
   setInterval(() => { if (mode === "yt" && ytReady && yt.getDuration?.() > 0) $("#pBar").value = yt.getCurrentTime() / yt.getDuration() * 1000; }, 500);
 }
+
+/* ----- chave da API ----- */
+const dlg = $("#dlg"), setK = v => { try { v ? localStorage.setItem("slify_yt_key", v) : localStorage.removeItem("slify_yt_key"); } catch (e) {} location.reload(); };
+$("#btnKey").onclick = () => { $("#keyIn").value = YT_KEY; dlg.showModal(); };
+$("#keySave").onclick = () => setK($("#keyIn").value.trim());
+$("#keyDel").onclick = () => setK("");
+$("#keyClose").onclick = () => { try { localStorage.setItem("slify_skip", "1"); } catch (e) {} dlg.close(); };
+
+/* ----- início ----- */
+(async () => {
+  $("#view").innerHTML = '<p class="empty">Buscando lançamentos…</p>';
+  try { (await getDocs(col("favorites"))).forEach(d => favs.add(d.id)); } catch (e) {}
+  await syncReleases();
+  go("new");
+  let skip = false; try { skip = !!localStorage.getItem("slify_skip"); } catch (e) {}
+  if (!YT_KEY && !skip) dlg.showModal();
+})();
