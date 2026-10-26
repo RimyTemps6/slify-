@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#cfe6fa">
+<title>Slify</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<section id="login">
+  <h1>Slify</h1>
+  <p>Seus lançamentos, favoritos e histórico num só lugar.</p>
+  <button id="btnLogin" class="primary">Entrar com Google</button>
+</section>
+
+<div id="app" hidden>
+  <header>
+    <h1>Slify</h1>
+    <button id="btnOut" class="ghost">Sair</button>
+  </header>
+  <nav>
+    <button data-tab="new" class="on">Novidades</button>
+    <button data-tab="favs">Favoritos</button>
+    <button data-tab="hist">Histórico</button>
+  </nav>
+  <main id="view"></main>
+
+  <footer id="player">
+    <img id="pCover" alt="">
+    <div class="meta"><b id="pTitle">Nada tocando</b><span id="pArtist">Escolha uma música</span></div>
+    <button id="pFav" class="ico" aria-label="Favoritar">♡</button>
+    <button id="pPrev" class="ico" aria-label="Anterior">⏮</button>
+    <button id="pPlay" class="ico big" aria-label="Tocar">▶</button>
+    <button id="pNext" class="ico" aria-label="Próxima">⏭</button>
+    <input id="pBar" type="range" min="0" max="1000" value="0" aria-label="Progresso">
+  </footer>
+</div>
+<div id="yt"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
