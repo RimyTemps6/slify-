@@ -1,4 +1,5 @@
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {getFirestore,collection,doc,setDoc,getDoc,deleteDoc,addDoc,getDocs,query,orderBy,limit,writeBatch} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 /* ===== CONFIGURAÇÃO ===== */
@@ -13,13 +14,14 @@ const firebaseConfig = {
 let YT_KEY = ""; try { YT_KEY = localStorage.getItem("slify_yt_key") || ""; } catch (e) {}
 /* ======================== */
 
-const app = initializeApp(firebaseConfig), db = getFirestore(app);
+const app = initializeApp(firebaseConfig), db = getFirestore(app), auth = getAuth(app);
+let uid = null;
 const $ = s => document.querySelector(s), $$ = s => document.querySelectorAll(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt = s => isFinite(s) && s > 0 ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
 let tab = "new", queue = [], idx = -1, favs = new Set(), mode = "audio", yt, ytReady = false, ytState = -1;
 const audio = new Audio();
-const col = n => collection(db, "slify", "me", n);
+const col = n => collection(db, "users", uid, n);
 
 function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2600); }
 
@@ -43,7 +45,7 @@ async function syncReleases() {
   }
   if (!list.length) return;
   const today = new Date().toISOString().slice(0, 10), b = writeBatch(db);
-  list.forEach(a => b.set(doc(db, "slify", "me", "albums", String(a.id)), {
+  list.forEach(a => b.set(doc(db, "albums", String(a.id)), {
     id: String(a.id), title: a.title || "", artist: a.artist?.name || "",
     cover: a.cover_big || a.cover_medium || "", date: a.release_date || today
   }, {merge: true}));
@@ -74,7 +76,7 @@ async function go(t) {
       return;
     }
     if (t === "new") {
-      const s = await getDocs(query(col("albums"), orderBy("date", "desc"), limit(60)));
+      const s = await getDocs(query(collection(db, "albums"), orderBy("date", "desc"), limit(60)));
       const arr = s.docs.map(d => d.data());
       v.innerHTML = '<h2 style="margin-bottom:14px">Novidades</h2>' + (arr.length ? '<div class="grid">' + arr.map((a, i) =>
         `<button class="album" data-i="${i}"><img src="${esc(a.cover)}" alt="" loading="lazy"><b>${esc(a.title)}</b><span>${esc(a.artist)}</span></button>`).join("") + "</div>"
@@ -160,7 +162,7 @@ $$(".pp").forEach(b => b.onclick = e => { e.stopPropagation(); toggle(); });
 $$(".fv").forEach(b => b.onclick = async e => {
   e.stopPropagation();
   const t = queue[idx]; if (!t) return;
-  const ref = doc(db, "slify", "me", "favorites", t.id);
+  const ref = doc(db, "users", uid, "favorites", t.id);
   if (favs.has(t.id)) { favs.delete(t.id); await deleteDoc(ref); }
   else { favs.add(t.id); await setDoc(ref, {id: t.id, title: t.title, artist: t.artist, cover: t.cover, preview: t.preview, album: t.album || "", at: Date.now()}); }
   ui(t); if (tab === "favs") go("favs");
@@ -218,7 +220,7 @@ function initYT() {
 }
 
 /* ----- chave da API ----- */
-const dlg = $("#dlg"), KREF = () => doc(db, "slify", "me", "config", "api");
+const dlg = $("#dlg"), KREF = () => doc(db, "users", uid, "config", "api");
 const setK = async v => {
   try { v ? localStorage.setItem("slify_yt_key", v) : localStorage.removeItem("slify_yt_key"); } catch (e) {}
   try { v ? await setDoc(KREF(), {ytKey: v}) : await deleteDoc(KREF()); } catch (e) {}
@@ -241,8 +243,29 @@ $("#btnTheme").onclick = () => {
   try { localStorage.setItem("slify_theme", d ? "dark" : "light"); } catch (e) {}
 };
 
+/* ----- login com Google ----- */
+const prov = new GoogleAuthProvider();
+$("#btnLogin").onclick = async () => {
+  $("#loginMsg").textContent = "";
+  try { await signInWithPopup(auth, prov); }
+  catch (e) {
+    if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment"].includes(e.code)) signInWithRedirect(auth, prov);
+    else if (e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") $("#loginMsg").textContent = "Não foi possível entrar: " + (e.code || e.message);
+  }
+};
+$("#btnOut").onclick = async () => {
+  try { localStorage.removeItem("slify_yt_key"); localStorage.removeItem("slify_skip"); } catch (e) {}
+  await signOut(auth); location.reload();
+};
+onAuthStateChanged(auth, u => {
+  if (!u) { $("#login").hidden = false; return; }
+  if (uid) return;
+  uid = u.uid; $("#login").hidden = true; $("#who").textContent = u.email || u.displayName || "";
+  start();
+});
+
 /* ----- início ----- */
-(async () => {
+async function start() {
   $("#view").innerHTML = '<p class="empty">Buscando lançamentos…</p>';
   if (!YT_KEY) {
     try {
@@ -256,4 +279,4 @@ $("#btnTheme").onclick = () => {
   go("new");
   let skip = false; try { skip = !!localStorage.getItem("slify_skip"); } catch (e) {}
   if (!YT_KEY && !skip) dlg.showModal();
-})();
+}

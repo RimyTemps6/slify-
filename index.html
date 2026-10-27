@@ -9,6 +9,12 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<section id="login" hidden>
+  <h1>Slify</h1>
+  <p>Entre com sua conta Google para guardar seus favoritos e seu histórico.</p>
+  <button id="btnLogin" class="primary">Entrar com Google</button>
+  <p id="loginMsg"></p>
+</section>
 <div id="app">
   <aside>
     <h1>Slify</h1>
@@ -17,9 +23,9 @@
       <button data-tab="search"><i>⌕</i><span>Buscar</span></button>
       <button data-tab="favs"><i>♥</i><span>Favoritos</span></button>
       <button data-tab="hist"><i>↺</i><span>Histórico</span></button>
+      <button id="btnKey"><i>⚙</i><span>Ajustes</span></button>
       <button id="btnTheme"><i>◐</i><span>Modo escuro</span></button>
     </nav>
-    <button id="btnKey" class="ghost">Chave da API</button>
   </aside>
   <main id="view"></main>
 
@@ -56,7 +62,9 @@
 </section>
 
 <dialog id="dlg">
-  <h2>Chave da API do YouTube</h2>
+  <h2>Ajustes</h2>
+  <p>Conta: <b id="who"></b> <button id="btnOut" class="ghost">Sair</button></p>
+  <h2 style="font-size:16px">Chave da API do YouTube</h2>
   <p>Com a chave, o Slify toca a música inteira. Sem ela, toca prévias de 30 segundos. Depois de salvar, ela fica guardada.</p>
   <input id="keyIn" type="password" placeholder="Cole a chave aqui" autocomplete="off">
   <div class="acts"><button id="keySave" class="primary">Salvar</button><button id="keyDel" class="ghost">Remover</button><button id="keyClose" class="ghost">Agora não</button></div>

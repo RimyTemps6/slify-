@@ -82,7 +82,7 @@ dialog input{width:100%;padding:12px 14px;border:0;border-radius:8px;font:inheri
 @media (max-width:720px){
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto;padding-bottom:0}
   aside{order:2;flex-direction:row;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0));position:relative;z-index:1}
-  aside h1,aside .ghost{display:none}
+  aside h1{display:none}
   nav{flex-direction:row;width:100%;justify-content:space-around}
   nav button{flex-direction:column;gap:2px;padding:6px 8px;font-size:11px;align-items:center}
   nav button i{font-size:20px}
@@ -92,3 +92,6 @@ dialog input{width:100%;padding:12px 14px;border:0;border-radius:8px;font:inheri
   .hide-m{display:none}
   main{padding:16px 14px 90px}
 }
+#login{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;background:linear-gradient(180deg,var(--top),var(--bg))}
+#login h1{font-size:64px}
+#login p{max-width:30ch;color:var(--mut)}
