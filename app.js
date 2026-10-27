@@ -1,5 +1,5 @@
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import {getFirestore,collection,doc,setDoc,deleteDoc,addDoc,getDocs,query,orderBy,limit,writeBatch} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import {getFirestore,collection,doc,setDoc,getDoc,deleteDoc,addDoc,getDocs,query,orderBy,limit,writeBatch} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 /* ===== CONFIGURAÇÃO ===== */
 const firebaseConfig = {
@@ -151,7 +151,8 @@ $("#pFav").onclick = async () => {
 };
 
 /* ----- YouTube (opcional) ----- */
-if (YT_KEY) {
+function initYT() {
+  if (!YT_KEY) return;
   window.onYouTubeIframeAPIReady = () => {
     yt = new YT.Player("yt", {height: "200", width: "200", events: {
       onReady: () => ytReady = true,
@@ -163,7 +164,12 @@ if (YT_KEY) {
 }
 
 /* ----- chave da API ----- */
-const dlg = $("#dlg"), setK = v => { try { v ? localStorage.setItem("slify_yt_key", v) : localStorage.removeItem("slify_yt_key"); } catch (e) {} location.reload(); };
+const dlg = $("#dlg"), KREF = () => doc(db, "slify", "me", "config", "api");
+const setK = async v => {
+  try { v ? localStorage.setItem("slify_yt_key", v) : localStorage.removeItem("slify_yt_key"); } catch (e) {}
+  try { v ? await setDoc(KREF(), {ytKey: v}) : await deleteDoc(KREF()); } catch (e) {}
+  location.reload();
+};
 $("#btnKey").onclick = () => { $("#keyIn").value = YT_KEY; dlg.showModal(); };
 $("#keySave").onclick = () => setK($("#keyIn").value.trim());
 $("#keyDel").onclick = () => setK("");
@@ -172,6 +178,13 @@ $("#keyClose").onclick = () => { try { localStorage.setItem("slify_skip", "1"); 
 /* ----- início ----- */
 (async () => {
   $("#view").innerHTML = '<p class="empty">Buscando lançamentos…</p>';
+  if (!YT_KEY) {
+    try {
+      const d = await getDoc(KREF());
+      if (d.exists() && d.data().ytKey) { YT_KEY = d.data().ytKey; try { localStorage.setItem("slify_yt_key", YT_KEY); } catch (e) {} }
+    } catch (e) {}
+  }
+  initYT();
   try { (await getDocs(col("favorites"))).forEach(d => favs.add(d.id)); } catch (e) {}
   await syncReleases();
   go("new");
