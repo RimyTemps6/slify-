@@ -55,6 +55,21 @@ async function go(t) {
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
   const v = $("#view"); v.innerHTML = '<p class="empty">Carregando…</p>';
   try {
+    if (t === "search") {
+      v.innerHTML = '<input id="q" class="search" type="search" placeholder="Buscar música ou artista" autocomplete="off"><div id="res"><p class="empty">Digite para buscar.</p></div>';
+      const q = $("#q"); let tm;
+      const run = async () => {
+        const s = q.value.trim(); if (!s) return;
+        $("#res").innerHTML = '<p class="empty">Buscando…</p>';
+        try {
+          const r = await jsonp("https://api.deezer.com/search?limit=40&q=" + encodeURIComponent(s));
+          showTracks((r.data || []).map(x => ({id: String(x.id), title: x.title, artist: x.artist?.name || "", cover: x.album?.cover_big || x.album?.cover_medium || "", preview: x.preview || "", album: x.album?.title || ""})), "Nada encontrado.", false, "#res");
+        } catch (e) { $("#res").innerHTML = '<p class="empty">Erro na busca. Tente de novo.</p>'; }
+      };
+      q.oninput = () => { clearTimeout(tm); tm = setTimeout(run, 600); };
+      q.onkeydown = e => { if (e.key === "Enter") { clearTimeout(tm); run(); } };
+      return;
+    }
     if (t === "new") {
       const s = await getDocs(query(col("albums"), orderBy("date", "desc"), limit(60)));
       const arr = s.docs.map(d => d.data());
@@ -76,8 +91,8 @@ async function openAlbum(a) {
     showTracks(tr, "Este álbum não tem faixas disponíveis.", true);
   } catch (e) { v.innerHTML = '<button class="back" id="bk">‹ Voltar</button><p class="empty">Não foi possível abrir o álbum.</p>'; $("#bk").onclick = () => go("new"); }
 }
-function showTracks(arr, emptyMsg, back) {
-  const v = $("#view");
+function showTracks(arr, emptyMsg, back, target = "#view") {
+  const v = $(target);
   v.innerHTML = (back ? '<button class="back" id="bk">‹ Voltar</button>' : "") + (arr.length ? arr.map((t, i) =>
     `<button class="row" data-i="${i}"><img src="${esc(t.cover)}" alt=""><div class="t"><b>${esc(t.title)}</b><span>${esc(t.artist)}</span></div></button>`).join("") : `<p class="empty">${emptyMsg}</p>`);
   if (back) $("#bk").onclick = () => go("new");
