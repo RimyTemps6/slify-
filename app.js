@@ -10,16 +10,18 @@ const firebaseConfig = {
   messagingSenderId: "206220562373",
   appId: "1:206220562373:web:48ae302e1fee142a3685ac"
 };
-// A chave do YouTube é adicionada pelo botão "Chave da API" dentro do site (fica salva no aparelho).
 let YT_KEY = ""; try { YT_KEY = localStorage.getItem("slify_yt_key") || ""; } catch (e) {}
 /* ======================== */
 
 const app = initializeApp(firebaseConfig), db = getFirestore(app);
-const $ = s => document.querySelector(s);
+const $ = s => document.querySelector(s), $$ = s => document.querySelectorAll(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = s => isFinite(s) && s > 0 ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00";
 let tab = "new", queue = [], idx = -1, favs = new Set(), mode = "audio", yt, ytReady = false, ytState = -1;
 const audio = new Audio();
 const col = n => collection(db, "slify", "me", n);
+
+function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2600); }
 
 function jsonp(url) {
   return new Promise((ok, fail) => {
@@ -32,7 +34,7 @@ function jsonp(url) {
   });
 }
 
-/* ----- lançamentos: busca e salva no Firestore automaticamente ----- */
+/* ----- lançamentos: busca e salva no Firestore sozinho (cria as coleções automaticamente) ----- */
 async function syncReleases() {
   let list = [];
   for (const u of ["editorial/0/releases?limit=50", "chart/0/albums?limit=50"]) {
@@ -49,33 +51,34 @@ async function syncReleases() {
 }
 
 /* ----- telas ----- */
-document.querySelectorAll("nav button").forEach(b => b.onclick = () => go(b.dataset.tab));
+$$("nav button").forEach(b => b.onclick = () => go(b.dataset.tab));
 async function go(t) {
   tab = t;
-  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  $$("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
   const v = $("#view"); v.innerHTML = '<p class="empty">Carregando…</p>';
   try {
     if (t === "search") {
-      v.innerHTML = '<input id="q" class="search" type="search" placeholder="Buscar música ou artista" autocomplete="off"><div id="res"><p class="empty">Digite para buscar.</p></div>';
+      v.innerHTML = '<input id="q" class="search" type="search" placeholder="O que você quer ouvir?" autocomplete="off"><div id="res"><p class="empty">Digite uma música ou artista.</p></div>';
       const q = $("#q"); let tm;
       const run = async () => {
         const s = q.value.trim(); if (!s) return;
         $("#res").innerHTML = '<p class="empty">Buscando…</p>';
         try {
           const r = await jsonp("https://api.deezer.com/search?limit=40&q=" + encodeURIComponent(s));
-          showTracks((r.data || []).map(x => ({id: String(x.id), title: x.title, artist: x.artist?.name || "", cover: x.album?.cover_big || x.album?.cover_medium || "", preview: x.preview || "", album: x.album?.title || ""})), "Nada encontrado.", false, "#res");
+          showTracks((r.data || []).map(x => ({id: String(x.id), title: x.title, artist: x.artist?.name || "", cover: x.album?.cover_big || x.album?.cover_medium || "", preview: x.preview || "", album: x.album?.title || ""})), "Nada encontrado. Tente outro nome.", false, "#res");
         } catch (e) { $("#res").innerHTML = '<p class="empty">Erro na busca. Tente de novo.</p>'; }
       };
-      q.oninput = () => { clearTimeout(tm); tm = setTimeout(run, 600); };
+      q.oninput = () => { clearTimeout(tm); tm = setTimeout(run, 500); };
       q.onkeydown = e => { if (e.key === "Enter") { clearTimeout(tm); run(); } };
+      q.focus();
       return;
     }
     if (t === "new") {
       const s = await getDocs(query(col("albums"), orderBy("date", "desc"), limit(60)));
       const arr = s.docs.map(d => d.data());
-      v.innerHTML = arr.length ? '<div class="grid">' + arr.map((a, i) =>
+      v.innerHTML = '<h2 style="margin-bottom:14px">Novidades</h2>' + (arr.length ? '<div class="grid">' + arr.map((a, i) =>
         `<button class="album" data-i="${i}"><img src="${esc(a.cover)}" alt="" loading="lazy"><b>${esc(a.title)}</b><span>${esc(a.artist)}</span></button>`).join("") + "</div>"
-        : '<p class="empty">Nenhum lançamento encontrado. Verifique a conexão e recarregue.</p>';
+        : '<p class="empty">Nenhum lançamento encontrado. Verifique a conexão e recarregue.</p>');
       v.querySelectorAll(".album").forEach(b => b.onclick = () => openAlbum(arr[b.dataset.i]));
     } else {
       const s = await getDocs(query(col(t === "favs" ? "favorites" : "history"), orderBy("at", "desc"), limit(100)));
@@ -114,41 +117,92 @@ async function ytSearch(t) {
 }
 async function playAt(i) {
   if (i < 0 || i >= queue.length) return;
-  idx = i; const t = queue[i]; stop(); ui(t);
+  idx = i; const t = queue[i]; stop(); ui(t); prog(0, 0);
   addDoc(col("history"), {id: t.id, title: t.title, artist: t.artist, cover: t.cover, preview: t.preview, album: t.album || "", at: Date.now()}).catch(() => {});
   if (YT_KEY && ytReady) { const id = await ytSearch(t); if (id && idx === i) { mode = "yt"; yt.loadVideoById(id); return; } }
   mode = "audio";
   if (!t.preview) { next(); return; }
   audio.src = t.preview; audio.play().catch(() => {});
 }
+function setPlay(p) { $$(".pp").forEach(b => b.textContent = p ? "⏸" : "▶"); }
+function prog(cur, dur) {
+  const p = dur ? cur / dur * 1000 : 0;
+  ["#pBar", "#fBar"].forEach(s => { const e = $(s); e.value = p; e.style.setProperty("--p", p / 10 + "%"); });
+  $("#fCur").textContent = fmt(cur); $("#fDur").textContent = fmt(dur);
+}
 function ui(t) {
-  $("#pTitle").textContent = t.title; $("#pArtist").textContent = t.artist; $("#pCover").src = t.cover;
-  $("#pFav").textContent = favs.has(t.id) ? "♥" : "♡";
-  document.querySelectorAll(".row").forEach((r, n) => r.classList.toggle("now", n === idx));
+  $("#pTitle").textContent = $("#fTitle").textContent = t.title;
+  $("#pArtist").textContent = $("#fArtist").textContent = t.artist;
+  $("#pCover").src = $("#fCover").src = t.cover; $("#fBg").style.backgroundImage = `url("${t.cover}")`;
+  $$(".fv").forEach(b => { b.textContent = favs.has(t.id) ? "♥" : "♡"; b.classList.toggle("on", favs.has(t.id)); });
+  $$(".row").forEach((r, n) => r.classList.toggle("now", n === idx));
+  document.title = t.title + " • " + t.artist;
+  if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({title: t.title, artist: t.artist, album: t.album || "", artwork: [{src: t.cover, sizes: "500x500"}]});
 }
 const next = () => idx + 1 < queue.length ? playAt(idx + 1) : null;
 const prev = () => playAt(Math.max(0, idx - 1));
-audio.onended = next;
-audio.onplay = audio.onpause = () => { if (mode === "audio") $("#pPlay").textContent = audio.paused ? "▶" : "⏸"; };
-audio.ontimeupdate = () => { if (mode === "audio" && audio.duration) $("#pBar").value = audio.currentTime / audio.duration * 1000; };
-$("#pNext").onclick = next; $("#pPrev").onclick = prev;
-$("#pPlay").onclick = () => {
+const toggle = () => {
   if (idx < 0) return;
   if (mode === "yt") ytState === 1 ? yt.pauseVideo() : yt.playVideo();
   else audio.paused ? audio.play() : audio.pause();
 };
-$("#pBar").oninput = e => {
+audio.onended = next;
+audio.onplay = audio.onpause = () => { if (mode === "audio") setPlay(!audio.paused); };
+audio.ontimeupdate = () => { if (mode === "audio") prog(audio.currentTime, audio.duration); };
+$$(".nx").forEach(b => b.onclick = e => { e.stopPropagation(); next(); });
+$$(".pv").forEach(b => b.onclick = e => { e.stopPropagation(); prev(); });
+$$(".pp").forEach(b => b.onclick = e => { e.stopPropagation(); toggle(); });
+["#pBar", "#fBar"].forEach(s => $(s).oninput = e => {
   const p = e.target.value / 1000;
   if (mode === "yt" && yt.getDuration) yt.seekTo(p * yt.getDuration(), true);
   else if (audio.duration) audio.currentTime = p * audio.duration;
-};
-$("#pFav").onclick = async () => {
+});
+$$(".fv").forEach(b => b.onclick = async e => {
+  e.stopPropagation();
   const t = queue[idx]; if (!t) return;
   const ref = doc(db, "slify", "me", "favorites", t.id);
   if (favs.has(t.id)) { favs.delete(t.id); await deleteDoc(ref); }
   else { favs.add(t.id); await setDoc(ref, {id: t.id, title: t.title, artist: t.artist, cover: t.cover, preview: t.preview, album: t.album || "", at: Date.now()}); }
   ui(t); if (tab === "favs") go("favs");
-};
+});
+
+/* tela cheia + atalhos */
+$("#openFull").onclick = () => { if (idx >= 0) $("#full").hidden = false; };
+$("#fClose").onclick = () => $("#full").hidden = true;
+document.addEventListener("keydown", e => {
+  const tg = e.target.tagName;
+  if (tg === "INPUT" && e.target.type !== "range" || tg === "TEXTAREA" || $("#dlg").open) return;
+  if (e.code === "Space") { e.preventDefault(); if (tg === "BUTTON") e.target.blur(); toggle(); }
+  else if (e.code === "Escape") $("#full").hidden = true;
+  else if (e.code === "ArrowRight" && e.shiftKey) next();
+  else if (e.code === "ArrowLeft" && e.shiftKey) prev();
+});
+if ("mediaSession" in navigator) {
+  const m = navigator.mediaSession;
+  m.setActionHandler("play", toggle); m.setActionHandler("pause", toggle);
+  m.setActionHandler("nexttrack", next); m.setActionHandler("previoustrack", prev);
+}
+
+/* download (prévia de 30s em MP3; a música inteira vem só pelo YouTube e não é baixável aqui) */
+$$(".dl").forEach(b => b.onclick = async e => {
+  e.stopPropagation();
+  const t = queue[idx]; if (!t || !t.preview) return toast("Escolha uma música primeiro");
+  const name = `${t.artist} - ${t.title}.mp3`.replace(/[\\/:*?"<>|]/g, "");
+  toast("Baixando…");
+  try {
+    const blob = await (await fetch(t.preview)).blob();
+    const f = new File([blob], name, {type: "audio/mpeg"});
+    if (/Android|iPhone|iPad/i.test(navigator.userAgent) && navigator.canShare?.({files: [f]})) {
+      await navigator.share({files: [f]}); return;
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    toast("Download iniciado");
+  } catch (err) {
+    if (err.name === "AbortError") return;
+    window.open(t.preview, "_blank"); toast("Abra o áudio e escolha Baixar / Salvar");
+  }
+});
 
 /* ----- YouTube (opcional) ----- */
 function initYT() {
@@ -156,11 +210,11 @@ function initYT() {
   window.onYouTubeIframeAPIReady = () => {
     yt = new YT.Player("yt", {height: "200", width: "200", events: {
       onReady: () => ytReady = true,
-      onStateChange: e => { ytState = e.data; if (mode === "yt") $("#pPlay").textContent = e.data === 1 ? "⏸" : "▶"; if (e.data === 0) next(); }
+      onStateChange: e => { ytState = e.data; if (mode === "yt") setPlay(e.data === 1); if (e.data === 0) next(); }
     }});
   };
   const s = document.createElement("script"); s.src = "https://www.youtube.com/iframe_api"; document.head.appendChild(s);
-  setInterval(() => { if (mode === "yt" && ytReady && yt.getDuration?.() > 0) $("#pBar").value = yt.getCurrentTime() / yt.getDuration() * 1000; }, 500);
+  setInterval(() => { if (mode === "yt" && ytReady && yt.getDuration?.() > 0) prog(yt.getCurrentTime(), yt.getDuration()); }, 500);
 }
 
 /* ----- chave da API ----- */
