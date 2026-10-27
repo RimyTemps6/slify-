@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#121212">
+<meta name="theme-color" content="#cfe6fa">
 <title>Slify</title>
+<script>try{if(localStorage.getItem("slify_theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,6 +17,7 @@
       <button data-tab="search"><i>⌕</i><span>Buscar</span></button>
       <button data-tab="favs"><i>♥</i><span>Favoritos</span></button>
       <button data-tab="hist"><i>↺</i><span>Histórico</span></button>
+      <button id="btnTheme"><i>◐</i><span>Modo escuro</span></button>
     </nav>
     <button id="btnKey" class="ghost">Chave da API</button>
   </aside>

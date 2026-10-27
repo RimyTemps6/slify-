@@ -51,10 +51,10 @@ async function syncReleases() {
 }
 
 /* ----- telas ----- */
-$$("nav button").forEach(b => b.onclick = () => go(b.dataset.tab));
+$$("nav button[data-tab]").forEach(b => b.onclick = () => go(b.dataset.tab));
 async function go(t) {
   tab = t;
-  $$("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  $$("nav button[data-tab]").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
   const v = $("#view"); v.innerHTML = '<p class="empty">Carregando…</p>';
   try {
     if (t === "search") {
@@ -228,6 +228,18 @@ $("#btnKey").onclick = () => { $("#keyIn").value = YT_KEY; dlg.showModal(); };
 $("#keySave").onclick = () => setK($("#keyIn").value.trim());
 $("#keyDel").onclick = () => setK("");
 $("#keyClose").onclick = () => { try { localStorage.setItem("slify_skip", "1"); } catch (e) {} dlg.close(); };
+
+/* ----- tema claro / escuro ----- */
+const applyTheme = d => {
+  d ? document.documentElement.dataset.theme = "dark" : delete document.documentElement.dataset.theme;
+  $("#btnTheme span").textContent = d ? "Modo claro" : "Modo escuro";
+  $('meta[name="theme-color"]').content = d ? "#121212" : "#cfe6fa";
+};
+applyTheme(document.documentElement.dataset.theme === "dark");
+$("#btnTheme").onclick = () => {
+  const d = document.documentElement.dataset.theme !== "dark"; applyTheme(d);
+  try { localStorage.setItem("slify_theme", d ? "dark" : "light"); } catch (e) {}
+};
 
 /* ----- início ----- */
 (async () => {
